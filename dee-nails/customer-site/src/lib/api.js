@@ -1,7 +1,8 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // Service photos are stored by the backend and referenced by a relative path.
-export const imageUrl = (path) => (path ? `${API_URL}${path}` : null);
+export const imageUrl = (path) =>
+  path ? (/^https?:\/\//i.test(path) ? path : `${API_URL}${path}`) : null;
 
 // FastAPI sends errors as {detail: "text"} or, for validation failures,
 // {detail: [{msg: "Value error, Enter a valid ..."}]}. Turn both into one

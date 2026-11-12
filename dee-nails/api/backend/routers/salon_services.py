@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from core.config import settings
 from core.protection import require_admin
 from database import get_db
-from schema import ServiceCreate, ServiceOut, ServiceUpdate
+from schema import ImageOrder, ServiceCreate, ServiceOut, ServiceUpdate
 from services import catalog_service
 
 router = APIRouter(prefix="/services", tags=["Services"])
@@ -36,13 +36,18 @@ def archive_service(service_id: int, user=Depends(require_admin), db: Session = 
     return catalog_service.archive_service(service_id, db)
 
 
-@router.post("/{service_id}/image", response_model=ServiceOut)
-async def upload_image(service_id: int, file: UploadFile = File(...), user=Depends(require_admin), db: Session = Depends(get_db)):
+@router.post("/{service_id}/images", response_model=ServiceOut)
+async def add_image(service_id: int, file: UploadFile = File(...), user=Depends(require_admin), db: Session = Depends(get_db)):
     # read one byte past the limit so an oversized file is rejected without loading all of it
     data = await file.read(settings.MAX_UPLOAD_MB * 1024 * 1024 + 1)
-    return catalog_service.set_image(service_id, data, db)
+    return catalog_service.add_image(service_id, data, db)
 
 
-@router.delete("/{service_id}/image", response_model=ServiceOut)
-def remove_image(service_id: int, user=Depends(require_admin), db: Session = Depends(get_db)):
-    return catalog_service.remove_image(service_id, db)
+@router.put("/{service_id}/images/order", response_model=ServiceOut)
+def reorder_images(service_id: int, order: ImageOrder, user=Depends(require_admin), db: Session = Depends(get_db)):
+    return catalog_service.reorder_images(service_id, order.image_ids, db)
+
+
+@router.delete("/{service_id}/images/{image_id}", response_model=ServiceOut)
+def remove_image(service_id: int, image_id: int, user=Depends(require_admin), db: Session = Depends(get_db)):
+    return catalog_service.remove_image(service_id, image_id, db)

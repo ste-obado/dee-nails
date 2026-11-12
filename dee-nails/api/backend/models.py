@@ -55,7 +55,10 @@ class SalonService(Base):
     category = Column(String(50), nullable=True)  # e.g. "Manicure", "Pedicure", "Add-ons"
     price = Column(Numeric(10, 2), nullable=False, default=0.00)
     duration_minutes = Column(Integer, nullable=False)
-    image_url = Column(String(500), nullable=True)
+    image_url = Column(String(500), nullable=True)   # the cover photo: always the first of `images`
+    # "cover" fills the square (crops); "contain" shows the whole photo on white,
+    # which suits white-background product shots
+    image_fit = Column(String(10), nullable=False, default="cover", server_default="cover")
     # services are archived instead of deleted: old bookings still point at them
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
@@ -63,7 +66,24 @@ class SalonService(Base):
     __table_args__ = (
         CheckConstraint("price >= 0", name="ck_salon_service_price_nonnegative"),
         CheckConstraint("duration_minutes > 0 AND duration_minutes <= 480", name="ck_salon_service_duration_range"),
+        CheckConstraint("image_fit IN ('cover', 'contain')", name="ck_salon_service_image_fit"),
     )
+
+    images = relationship(
+        "ServiceImage", back_populates="service", cascade="all, delete-orphan", order_by="ServiceImage.position"
+    )
+
+
+class ServiceImage(Base):
+    """Up to 4 photos per service; position 0 is the cover shown in the menu grid."""
+    __tablename__ = "service_images"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    service_id = Column(Integer, ForeignKey("salon_services.id", ondelete="CASCADE"), nullable=False, index=True)
+    url = Column(String(500), nullable=False)
+    position = Column(Integer, nullable=False, default=0)
+
+    service = relationship("SalonService", back_populates="images")
 
 
 class Booking(Base):

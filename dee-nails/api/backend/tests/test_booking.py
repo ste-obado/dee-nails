@@ -26,7 +26,7 @@ def clean_booking_tables():
     Deleting settings/working hours makes them re-seed with the defaults."""
     db = SessionLocal()
     for table in (models.BookingItem, models.Booking, models.BlockedTime,
-                  models.SalonService, models.WorkingHours, models.SalonSettings):
+                  models.ServiceImage, models.SalonService, models.WorkingHours, models.SalonSettings):
         db.query(table).delete()
     db.commit()
     db.close()
@@ -524,7 +524,7 @@ def test_public_info_exposes_hours_and_whatsapp_but_not_internal_settings(client
 
 
 ###############################
-# service photos
+# service photos (gallery of up to 4) and fit mode
 
 import io
 import os
@@ -533,66 +533,122 @@ from PIL import Image
 from core.config import settings
 
 
-def _png(size=(1600, 1200), color=(200, 60, 120), fmt="PNG"):
+def _png(size=(1600, 1200), color=(200, 60, 120), fmt="PNG", mode="RGB"):
     buf = io.BytesIO()
-    Image.new("RGB", size, color).save(buf, fmt)
+    Image.new(mode, size, color).save(buf, fmt)
     return buf.getvalue()
 
 
-def upload(client, headers, service_id, data, name="photo.png", ctype="image/png"):
-    return client.post(f"/services/{service_id}/image", headers=headers, files={"file": (name, data, ctype)})
+def add_photo(client, headers, service_id, data=None, name="photo.png", ctype="image/png"):
+    return client.post(f"/services/{service_id}/images", headers=headers,
+                       files={"file": (name, data if data is not None else _png(), ctype)})
 
 
-def test_admin_uploads_photo_which_is_shrunk_and_served(client, admin_headers):
+def disk_path(url: str) -> str:
+    return os.path.join(settings.UPLOAD_DIR, "services", os.path.basename(url))
+
+
+def test_admin_adds_photo_which_is_shrunk_and_served(client, admin_headers):
     svc = make_service(client, admin_headers)
-    r = upload(client, admin_headers, svc["id"], _png())
+    r = add_photo(client, admin_headers, svc["id"])
     assert r.status_code == 200
-    url = r.json()["image_url"]
+    body = r.json()
+    url = body["images"][0]["url"]
     assert url.startswith("/uploads/services/") and url.endswith(".webp")
+    assert body["image_url"] == url                     # the first photo is the cover
 
     served = client.get(url)
-    assert served.status_code == 200
     img = Image.open(io.BytesIO(served.content))
-    assert img.format == "WEBP" and max(img.size) <= 900
-    assert client.get("/services/").json()[0]["image_url"] == url
+    assert served.status_code == 200 and img.format == "WEBP" and max(img.size) <= 900
+    assert client.get("/services/").json()[0]["images"][0]["url"] == url
 
 
-def test_replacing_a_photo_deletes_the_old_file(client, admin_headers):
+def test_a_service_can_have_four_photos_but_not_five(client, admin_headers):
     svc = make_service(client, admin_headers)
-    first = upload(client, admin_headers, svc["id"], _png()).json()["image_url"]
-    second = upload(client, admin_headers, svc["id"], _png(color=(10, 10, 10)), name="b.jpg", ctype="image/jpeg").json()["image_url"]
-    assert first != second
-    assert not os.path.exists(os.path.join(settings.UPLOAD_DIR, "services", os.path.basename(first)))
-    assert os.path.exists(os.path.join(settings.UPLOAD_DIR, "services", os.path.basename(second)))
+    for _ in range(4):
+        assert add_photo(client, admin_headers, svc["id"]).status_code == 200
+    r = add_photo(client, admin_headers, svc["id"])
+    assert r.status_code == 400 and "up to 4" in r.json()["detail"]
+    assert len(client.get("/services/").json()[0]["images"]) == 4
 
 
-def test_remove_photo(client, admin_headers):
+def test_removing_a_photo_deletes_the_file_and_promotes_the_next_cover(client, admin_headers):
     svc = make_service(client, admin_headers)
-    url = upload(client, admin_headers, svc["id"], _png()).json()["image_url"]
-    r = client.delete(f"/services/{svc['id']}/image", headers=admin_headers)
-    assert r.status_code == 200 and r.json()["image_url"] is None
-    assert client.get(url).status_code == 404
+    first = add_photo(client, admin_headers, svc["id"]).json()["images"][0]
+    both = add_photo(client, admin_headers, svc["id"], _png(color=(10, 10, 10))).json()
+    second = both["images"][1]
+
+    r = client.delete(f"/services/{svc['id']}/images/{first['id']}", headers=admin_headers).json()
+    assert not os.path.exists(disk_path(first["url"]))
+    assert [i["id"] for i in r["images"]] == [second["id"]]
+    assert r["image_url"] == second["url"]              # cover moved up
+
+    last = client.delete(f"/services/{svc['id']}/images/{second['id']}", headers=admin_headers).json()
+    assert last["images"] == [] and last["image_url"] is None
 
 
-def test_non_image_files_are_rejected(client, admin_headers):
+def test_reordering_changes_the_cover(client, admin_headers):
     svc = make_service(client, admin_headers)
-    r = upload(client, admin_headers, svc["id"], b"<script>alert(1)</script>", name="evil.jpg", ctype="image/jpeg")
+    ids = [add_photo(client, admin_headers, svc["id"]).json()["images"][-1]["id"] for _ in range(3)]
+    r = client.put(f"/services/{svc['id']}/images/order", headers=admin_headers,
+                   json={"image_ids": [ids[2], ids[0], ids[1]]}).json()
+    assert [i["id"] for i in r["images"]] == [ids[2], ids[0], ids[1]]
+    assert r["image_url"] == r["images"][0]["url"]
+
+    bad = client.put(f"/services/{svc['id']}/images/order", headers=admin_headers, json={"image_ids": [ids[0], ids[1]]})
+    assert bad.status_code == 400                      # must list every photo exactly once
+    dup = client.put(f"/services/{svc['id']}/images/order", headers=admin_headers, json={"image_ids": [ids[0], ids[0], ids[1]]})
+    assert dup.status_code == 400
+
+
+def test_cannot_touch_another_services_photo(client, admin_headers):
+    a = make_service(client, admin_headers)
+    b = make_service(client, admin_headers)
+    photo = add_photo(client, admin_headers, a["id"]).json()["images"][0]
+    assert client.delete(f"/services/{b['id']}/images/{photo['id']}", headers=admin_headers).status_code == 404
+    assert os.path.exists(disk_path(photo["url"]))
+
+
+def test_transparent_cutouts_get_a_white_background_not_black(client, admin_headers):
+    svc = make_service(client, admin_headers)
+    cutout = _png((200, 200), (0, 0, 0, 0), mode="RGBA")          # fully transparent PNG
+    url = add_photo(client, admin_headers, svc["id"], cutout).json()["images"][0]["url"]
+    px = Image.open(io.BytesIO(client.get(url).content)).convert("RGB").getpixel((100, 100))
+    assert min(px) >= 250                                           # white, not black
+
+
+def test_image_fit_defaults_to_cover_and_accepts_only_known_values(client, admin_headers):
+    svc = make_service(client, admin_headers)
+    assert svc["image_fit"] == "cover"
+    r = client.patch(f"/services/{svc['id']}", headers=admin_headers, json={"image_fit": "contain"})
+    assert r.json()["image_fit"] == "contain"
+    assert client.patch(f"/services/{svc['id']}", headers=admin_headers, json={"image_fit": "stretch"}).status_code == 422
+    made = make_service(client, admin_headers, image_fit="contain")
+    assert made["image_fit"] == "contain"
+
+
+def test_non_image_files_are_rejected_and_nothing_is_stored(client, admin_headers):
+    svc = make_service(client, admin_headers)
+    r = add_photo(client, admin_headers, svc["id"], b"<script>alert(1)</script>", name="evil.jpg", ctype="image/jpeg")
     assert r.status_code == 400
-    gif = _png(fmt="GIF")
-    assert upload(client, admin_headers, svc["id"], gif, name="a.gif", ctype="image/gif").status_code == 400
+    assert add_photo(client, admin_headers, svc["id"], _png(fmt="GIF"), name="a.gif", ctype="image/gif").status_code == 400
+    assert client.get("/services/").json()[0]["images"] == []
 
 
 def test_oversized_upload_is_rejected(client, admin_headers, monkeypatch):
     svc = make_service(client, admin_headers)
     monkeypatch.setattr(settings, "MAX_UPLOAD_MB", 0)
-    assert upload(client, admin_headers, svc["id"], _png((50, 50))).status_code == 413
+    assert add_photo(client, admin_headers, svc["id"], _png((50, 50))).status_code == 413
 
 
-def test_photo_upload_requires_admin_and_a_real_service(client, admin_headers, user_headers):
+def test_photo_endpoints_require_admin_and_a_real_service(client, admin_headers, user_headers):
     svc = make_service(client, admin_headers)
-    assert upload(client, {}, svc["id"], _png()).status_code == 401
-    assert upload(client, user_headers, svc["id"], _png()).status_code == 403
-    assert upload(client, admin_headers, 999999, _png()).status_code == 404
+    photo = add_photo(client, admin_headers, svc["id"]).json()["images"][0]
+    for headers, expected in (({}, 401), (user_headers, 403)):
+        assert add_photo(client, headers, svc["id"]).status_code == expected
+        assert client.delete(f"/services/{svc['id']}/images/{photo['id']}", headers=headers).status_code == expected
+        assert client.put(f"/services/{svc['id']}/images/order", headers=headers, json={"image_ids": [photo["id"]]}).status_code == expected
+    assert add_photo(client, admin_headers, 999999).status_code == 404
 
 
 def test_image_url_cannot_be_set_through_create_or_update(client, admin_headers):

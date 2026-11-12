@@ -23,8 +23,10 @@ The booking is saved before WhatsApp opens, so nothing is lost if the client
 never sends the message. Later, the client can open **Check booking** and enter
 their reference and phone to see whether Dee has confirmed.
 
-Dee adds a photo to each service from her phone's gallery or camera in the admin
-site (Services). Photos are resized and stored on the server.
+Dee adds up to **four photos** to each service from her phone's gallery or camera
+in the admin site (Services), and chooses whether they fill the frame or are shown
+whole on white (best for cut-out or white-background photos). Clients tap a service
+to swipe through its photos. Photos are resized and stored on the server.
 
 ## Run it locally
 
@@ -54,9 +56,20 @@ Without Docker, see `api/DEPLOYMENT.md`.
 ## Running the tests
 
 ```bash
-cd api/backend && pip install -r requirements-dev.txt && pytest   # 76 tests
-cd admin-site && npm install && npm test                          # 29 tests
+cd api/backend && pip install -r requirements-dev.txt && pytest   # 80 tests
+cd admin-site && npm install && npm test                          # 31 tests
 ```
+
+## Branding
+
+The logo files live in each site's `public/` folder: a white wordmark for the
+purple header, a full logo in deep purple (`#2c1646`) and in white, the favicon
+set (a white "D" from the logo's lettering on purple), the phone home-screen icons
+and `manifest.webmanifest`. The customer site also has `og-image.jpg`, the picture
+WhatsApp shows when someone shares the booking link. For it to work, set
+`VITE_SITE_URL` (for example `https://deenails.example`) in `customer-site/.env`
+before running `npm run build`. WhatsApp keeps a copy of a link's preview, so after
+changing the image, test with a new link or wait for it to refresh.
 
 ## Good to know
 

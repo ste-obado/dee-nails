@@ -88,12 +88,15 @@ def normalize_ke_phone(raw: str) -> str:
 
 # ---- services
 
+ImageFit = Literal["cover", "contain"]
+
 class ServiceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     description: str = Field(default="", max_length=500)
     category: Optional[str] = Field(default=None, max_length=50)
     price: float = Field(ge=0, le=1_000_000)
     duration_minutes: int = Field(ge=5, le=480)
+    image_fit: ImageFit = "cover"
     is_active: bool = True
 
 
@@ -103,7 +106,19 @@ class ServiceUpdate(BaseModel):
     category: Optional[str] = Field(default=None, max_length=50)
     price: Optional[float] = Field(default=None, ge=0, le=1_000_000)
     duration_minutes: Optional[int] = Field(default=None, ge=5, le=480)
+    image_fit: Optional[ImageFit] = None
     is_active: Optional[bool] = None
+
+
+class ServiceImageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    url: str
+
+
+class ImageOrder(BaseModel):
+    image_ids: list[int] = Field(min_length=1, max_length=4)
 
 
 class ServiceOut(BaseModel):
@@ -115,7 +130,9 @@ class ServiceOut(BaseModel):
     category: Optional[str]
     price: float
     duration_minutes: int
-    image_url: Optional[str]
+    image_url: Optional[str]          # the cover photo (first of `images`)
+    image_fit: str
+    images: list[ServiceImageOut] = []
     is_active: bool
 
 

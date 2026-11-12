@@ -39,8 +39,17 @@ class Settings:
     # Only used to seed the settings row the first time; Dee can change it
     # from the admin panel afterwards.
     WHATSAPP_NUMBER: str = os.getenv("WHATSAPP_NUMBER", "")
-    # Where uploaded service photos are stored (a Docker volume in production).
+    # Local storage is for development only. Set all R2 values in production.
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    R2_ACCOUNT_ID: str = os.getenv("R2_ACCOUNT_ID", "")
+    R2_ACCESS_KEY_ID: str = os.getenv("R2_ACCESS_KEY_ID", "")
+    R2_SECRET_ACCESS_KEY: str = os.getenv("R2_SECRET_ACCESS_KEY", "")
+    R2_BUCKET: str = os.getenv("R2_BUCKET", "")
+    R2_PUBLIC_BASE_URL: str = os.getenv("R2_PUBLIC_BASE_URL", "").rstrip("/")
+
+    @property
+    def r2_enabled(self) -> bool:
+        return bool(self.R2_ACCOUNT_ID and self.R2_ACCESS_KEY_ID and self.R2_SECRET_ACCESS_KEY and self.R2_BUCKET and self.R2_PUBLIC_BASE_URL)
     MAX_UPLOAD_MB: int = int(os.getenv("MAX_UPLOAD_MB", "8"))
     # Anti-spam: how many upcoming (pending/confirmed) bookings one phone
     # number may hold at once.

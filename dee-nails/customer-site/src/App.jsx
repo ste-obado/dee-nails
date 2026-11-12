@@ -4,6 +4,7 @@ import Home from "./pages/Home";
 import Book from "./pages/Book";
 import Booked from "./pages/Booked";
 import Check from "./pages/Check";
+import ServiceDetail from "./pages/ServiceDetail";
 import BottomNav from "./components/BottomNav";
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/book" element={<Book />} />
           <Route path="/booked" element={<Booked />} />
           <Route path="/check" element={<Check />} />
+          <Route path="/service/:id" element={<ServiceDetail />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

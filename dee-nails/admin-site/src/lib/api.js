@@ -1,7 +1,8 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // Service photos are stored by the backend and referenced by a relative path.
-export const imageUrl = (path) => (path ? `${API_URL}${path}` : null);
+export const imageUrl = (path) =>
+  path ? (/^https?:\/\//i.test(path) ? path : `${API_URL}${path}`) : null;
 
 function getToken() {
   return localStorage.getItem("admin_token");
@@ -95,12 +96,15 @@ export const api = {
   getServices: () => request("/services/admin/all"),
   addService: (service) => request("/services/", { method: "POST", body: service }),
   updateService: (id, updates) => request(`/services/${id}`, { method: "PATCH", body: updates }),
-  uploadServiceImage: (id, file) => {
+  // up to 4 photos per service; each call returns the updated service (with `images`)
+  addServiceImage: (id, file) => {
     const form = new FormData();
     form.append("file", file);
-    return request(`/services/${id}/image`, { method: "POST", body: form });
+    return request(`/services/${id}/images`, { method: "POST", body: form });
   },
-  removeServiceImage: (id) => request(`/services/${id}/image`, { method: "DELETE" }),
+  removeServiceImage: (id, imageId) => request(`/services/${id}/images/${imageId}`, { method: "DELETE" }),
+  reorderServiceImages: (id, imageIds) =>
+    request(`/services/${id}/images/order`, { method: "PUT", body: { image_ids: imageIds } }),
   archiveService: (id) => request(`/services/${id}`, { method: "DELETE" }),
 
   // bookings. The status/reschedule calls return { booking, whatsapp_url }:

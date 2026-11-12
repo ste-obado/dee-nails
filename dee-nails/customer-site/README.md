@@ -18,6 +18,8 @@ there is nothing salon-specific to configure here.
 ## How a booking works
 
 1. **Services** (`/`): `GET /services/`. A two-column photo grid with category tabs; the round button on a photo adds it to "My appointment".
+   Tapping a service opens `/service/:id`: a swipeable gallery of up to four photos
+   with a thumbnail strip, the full description, and an add button.
 2. **My appointment** (`/book`): pick a day and time. Free times come from
    `GET /bookings/slots`; taken times are shown hatched.
 3. **Book**: `POST /bookings/`. The server recalculates price and duration and
@@ -34,11 +36,17 @@ In the browser (`localStorage`) we keep only the selected service IDs and, if th
 client ticks "Remember my name and number", their name and phone. Prices always
 come fresh from the server.
 
+## Logo, icons and link preview
+
+Everything is in `public/` (see the main README's Branding section). To show the
+logo when the link is shared on WhatsApp, set `VITE_SITE_URL` to this site's public
+address at build time.
+
 ## Deploying
 
 ```bash
 npm run build   # outputs to dist/
 ```
 
-Set `VITE_API_URL` to the deployed backend, and add this site's domain to the
+Set `VITE_API_URL` to the deployed backend (and `VITE_SITE_URL` to this site's address), and add this site's domain to the
 backend's `FRONTEND_ORIGINS`.

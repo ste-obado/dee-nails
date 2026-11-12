@@ -9,7 +9,9 @@ export default function Header() {
   return (
     <header className="site">
       <div className="wrap bar">
-        <Link to="/" className="brand">{name}</Link>
+        <Link to="/" className="brand" aria-label={name}>
+          <img src="/logo-wordmark-white.png" alt={name} width="141" height="28" />
+        </Link>
         <nav aria-label="Main">
           {pathname !== "/check" && <Link to="/check">Check booking</Link>}
           {pathname !== "/book" && (

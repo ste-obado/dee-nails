@@ -24,7 +24,10 @@ export default function Layout({ children }) {
   return (
     <div className="layout">
       <aside className="sidebar">
-        <div className="brand">Dee Nails<span>admin</span></div>
+        <div className="brand">
+          <img src="/logo-wordmark-white.png" alt="Dee Nails" width="150" height="30" />
+          <span>admin</span>
+        </div>
         <nav>
           {LINKS.map((l) => (
             <NavLink key={l.to} to={l.to} end={l.end} className={({ isActive }) => (isActive ? "active" : "")}>

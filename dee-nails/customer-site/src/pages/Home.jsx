@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import AppointmentBar from "../components/AppointmentBar";
 import Icon from "../components/Icon";
 import ServicePhoto from "../components/ServicePhoto";
@@ -78,7 +79,8 @@ export default function Home() {
                 return (
                   <li key={s.id} className={`service${on ? " is-on" : ""}`}>
                     <div className="service-photo">
-                      <ServicePhoto service={s} />
+                      <Link to={`/service/${s.id}`} aria-label={`${s.name}, view details`} tabIndex={-1}><ServicePhoto service={s} /></Link>
+                      {s.images?.length > 1 && <span className="photo-count"><Icon name="image" size={14} />{s.images.length}</span>}
                       <button
                         className={`add${on ? " on" : ""}`}
                         aria-pressed={on}
@@ -88,7 +90,7 @@ export default function Home() {
                         <Icon name={on ? "check" : "plus"} size={24} />
                       </button>
                     </div>
-                    <h3>{s.name}</h3>
+                    <h3><Link to={`/service/${s.id}`}>{s.name}</Link></h3>
                     <p className="price">{money(s.price, currency)}</p>
                     <p className="service-meta"><Icon name="clock" size={15} />{duration(s.duration_minutes)}</p>
                     {s.description && <p className="service-desc">{s.description}</p>}

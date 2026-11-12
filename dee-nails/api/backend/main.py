@@ -2,9 +2,10 @@ import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from core.config import settings
+from database import SessionLocal
 from routers import authentication, user, salon_services, bookings, schedule
 
 # Schema is now owned by Alembic migrations (see alembic/), not created here.
@@ -40,10 +41,11 @@ async def security_headers(request: Request, call_next):
     return response
 
 
-# Service photos. Files are re-encoded WebP with random names (image_service.py);
-# nothing else is ever written here.
-os.makedirs(os.path.join(settings.UPLOAD_DIR, "services"), exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+# Local photo serving is retained for development only. Production photos live in R2.
+if not settings.r2_enabled:
+    os.makedirs(os.path.join(settings.UPLOAD_DIR, "services"), exist_ok=True)
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 app.include_router(authentication.router)
 app.include_router(user.router)
@@ -55,3 +57,14 @@ app.include_router(schedule.router)
 @app.get("/")
 def root():
     return {"status": "ok"}
+
+
+@app.get("/health")
+def health():
+    """Readiness check: verifies both the API process and database connection."""
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "ok"}
+    finally:
+        db.close()

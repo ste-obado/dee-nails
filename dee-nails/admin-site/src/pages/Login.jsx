@@ -38,6 +38,7 @@ export default function Login() {
   return (
     <div className="login-screen">
       <form className="login-card" onSubmit={handleSubmit}>
+        <img className="login-logo" src="/logo-full-ink.png" alt="" width="180" height="204" />
         <h1>Dee Nails admin</h1>
         <p className="muted">Sign in with an admin account</p>
 

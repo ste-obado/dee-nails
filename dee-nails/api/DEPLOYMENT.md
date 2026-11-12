@@ -31,6 +31,13 @@ everything in them. On a new database that does nothing to worry about. If you
 are upgrading a database that holds store data you want to keep, back it up
 first, or delete that migration file before running `alembic upgrade head`.
 
+## Service photos
+
+Each service can have up to four photos (`service_images` table) and a fit mode.
+The migration `326c2be7538c` turns any single photo uploaded earlier into the
+service's first gallery photo, so nothing is lost when upgrading. Files live in
+the `uploads_data` volume; transparent PNG cut-outs are placed on white.
+
 ## Creating Dee's admin account
 
 `/auth/register` only creates plain customer accounts, never admins. Create
@@ -74,3 +81,25 @@ the schema always matches the code. The API is at `http://localhost:8000`.
   `dist/` folder to a static host (Netlify, Vercel, Cloudflare Pages, or Nginx).
 - Back up the `mysql_data` volume (bookings) and the `uploads_data` volume
   (service photos) regularly. Losing a container is fine, losing a volume isn't.
+
+## Render + Cloudflare R2 notes
+
+For a Render free web service, configure the five `R2_*` variables from `.env.example`.
+Create an R2 bucket, create an R2 API token with Object Read & Write access to that
+bucket, and attach a public custom domain to the bucket. Set `R2_PUBLIC_BASE_URL`
+to that public domain (without a trailing slash). Never expose the R2 secret in a
+Vite variable. In production, the API stores optimized WebP files in R2 and returns
+full public URLs; local `/uploads` serving is enabled only when R2 is not configured.
+Existing database rows with `/uploads/services/...` values are not migrated
+automatically: copy any still-existing local files to R2 under `services/` and
+update both `service_images.url` and `salon_services.image_url` to their public URLs.
+If the old files are already gone, those photos must be uploaded again through the
+admin site.
+
+Configure UptimeRobot to request `GET /health` (not just `/`). This endpoint runs
+`SELECT 1` and returns an error if the database cannot be reached.
+
+The customer site's build runs `scripts/fetch-services.js` before Vite. If
+`VITE_API_URL` is reachable during the build, it refreshes
+`src/data/services.snapshot.json`; otherwise the last committed snapshot is kept.
+The storefront also caches the last successful service response in localStorage.
